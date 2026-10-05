@@ -604,6 +604,53 @@
     });
   }
 
+  // The app's permanent home, for "can I have a copy?" — update if the app moves.
+  var APP_HOME = 'https://mccarthyjohn.github.io/travel-board/';
+
+  function shareAppSheet() {
+    openSheet('Share this app', function (body, close) {
+      var url = APP_HOME;
+      var readonly = h('input', { type: 'text', value: url, readonly: true, 'aria-label': 'App address' });
+      body.appendChild(h('p', {
+        class: 'note-line',
+        text: 'Anyone can install Travel Board from this address. Send it to them (Messages, email), and on their device: open it in Safari, tap Share, then Add to Home Screen. They get a fresh empty board — your trips never leave your device.'
+      }));
+      body.appendChild(readonly);
+      body.appendChild(h('div', { class: 'sheet-actions' },
+        h('button', {
+          class: 'btn main', type: 'button', text: 'Share / Send',
+          onclick: function () {
+            if (navigator.share) {
+              navigator.share({ title: 'Travel Board', text: 'Install Travel Board:', url: url })
+                .catch(function () { /* user cancelled the share sheet */ });
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(
+                function () { toast('Address copied'); },
+                function () { toast('Select the address and copy it'); });
+            } else {
+              readonly.focus(); readonly.select();
+              try { document.execCommand('copy'); toast('Address copied'); }
+              catch (e) { toast('Select the address and copy it'); }
+            }
+          }
+        }),
+        h('button', {
+          class: 'btn', type: 'button', text: 'Copy address',
+          onclick: function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(
+                function () { toast('Address copied'); },
+                function () { toast('Select the address and copy it'); });
+            } else {
+              readonly.focus(); readonly.select();
+              try { document.execCommand('copy'); toast('Address copied'); }
+              catch (e) { toast('Select the address and copy it'); }
+            }
+          }
+        })));
+    });
+  }
+
   // ---------- sheet: backup and new trip ----------
 
   function backupSheet() {
@@ -698,6 +745,7 @@
     top.appendChild(h('button', { class: 'icon-btn', type: 'button', text: 'Edit', onclick: function () { editSheet(focus.id); } }));
     top.appendChild(h('button', { class: 'icon-btn', type: 'button', text: 'Itinerary', onclick: function () { itinerarySheet(focus.id); } }));
     top.appendChild(h('button', { class: 'icon-btn', type: 'button', text: 'Kinds', onclick: kindsSheet }));
+    top.appendChild(h('button', { class: 'icon-btn', type: 'button', text: 'Share app', onclick: shareAppSheet }));
     top.appendChild(h('button', { class: 'icon-btn', type: 'button', text: 'Backup', onclick: backupSheet }));
     var frag = document.createDocumentFragment();
     frag.appendChild(top);
