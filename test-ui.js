@@ -127,6 +127,7 @@ global.window = {
 };
 global.TB = require('./model.js');
 global.TBDocx = require('./docx.js');
+global.TBAtt = require('./attachments.js');
 
 // ---------- helpers ----------
 
@@ -152,9 +153,19 @@ function savedState() {
 }
 var passed = 0;
 function step(name, fn) {
-  try { fn(); passed += 1; console.log('ok   - ' + name); }
-  catch (e) { console.error('FAIL - ' + name + '\n       ' + (e.stack || e.message)); process.exitCode = 1; }
+  try {
+    var r = fn();
+    if (r && typeof r.then === 'function') {
+      PENDING = PENDING.then(function () { return r; }).then(function () { passed += 1; console.log('ok   - ' + name); },
+        function (e) { console.error('FAIL - ' + name + '\n       ' + (e.stack || e.message)); process.exitCode = 1; });
+      return;
+    }
+    passed += 1;
+    console.log('ok   - ' + name);
+  } catch (e) { console.error('FAIL - ' + name + '\n       ' + (e.stack || e.message)); process.exitCode = 1; }
 }
+var PENDING = Promise.resolve();
+process.on('beforeExit', function () { PENDING.then(function () {}, function () {}); });
 
 // ---------- scenarios ----------
 
@@ -430,4 +441,40 @@ step('export filter: untick packing kinds and the view drops them live', functio
   button(sheet, 'Close').fire('click');
 });
 
-console.log('\n' + passed + ' UI steps passed' + (process.exitCode ? ', with failures' : ''));
+step('attach a document to the flight: picker stores it, paperclip shows, restore keeps the name', function () {
+  // On the trip page (from the backup-restore step). Open the train card's edit sheet.
+  button(elements.app, 'Home \u2192 Singapore').fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  var pickBtn = all(sheet, function (n) { return n.tagName === 'button' && n.textContent === 'Attach from Files'; })[0];
+  assert.ok(pickBtn, 'Attach from Files button missing');
+  var pick = all(sheet, function (n) { return n.tagName === 'input' && n.attrs.type === 'file'; })
+    .filter(function (i) { return i.attrs.accept !== '.tripboard,application/json'; })[0];
+  assert.ok(pick, 'file picker input missing');
+  // Simulate the user picking a file through the picker (stub the storage call).
+  var calls = [];
+  global.TBAtt.attach = function (noteId, f) {
+    calls.push({ noteId: noteId, name: f.name });
+    return Promise.resolve({ name: f.name, size: f.size, type: f.type, key: 'att_test_1' });
+  };
+  global.TBAtt.getFile = function () { return Promise.resolve(new global.Blob(['x'])); };
+  pick.attrs.files = [{ name: 'e-ticket.pdf', size: 12345, type: 'application/pdf' }];
+  pick.fire('change');
+  return Promise.resolve().then(function () { return new Promise(function (r) { setTimeout(r, 5); }); }).then(function () {
+    var s = savedState();
+    var t = s.notes.filter(function (n) { return n.kind === 'train'; })[0];
+    assert.strictEqual(t.attachments.length, 1, 'attachment not recorded');
+    assert.strictEqual(t.attachments[0].name, 'e-ticket.pdf');
+    assert.strictEqual(calls.length, 1, 'attach not called once');
+    // paperclip: close the sheet, then the train card lives on the trip page below the place cards.
+    button(sheet, 'Close').fire('click');
+    assert.strictEqual(all(elements.app, function (n) { return n.className === 'tag' && n.textContent === '[doc] 1'; }).length, 1,
+      'paperclip count missing on card');
+  });
+});
+
+PENDING.then(function () {
+  console.log('\n' + passed + ' UI steps passed' + (process.exitCode ? ', with failures' : ''));
+}, function (e) {
+  console.error('ASYNC-FAIL:', e && e.message);
+  process.exitCode = 1;
+});

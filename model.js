@@ -290,6 +290,7 @@
       startTime: '',
       endTime: '',
       link: '',
+      attachments: [],
       checked: false
     };
   }
@@ -597,6 +598,14 @@
       note.startTime = TIME_RE.test(str(raw.startTime)) ? raw.startTime : '';
       note.endTime = TIME_RE.test(str(raw.endTime)) ? raw.endTime : '';
       note.link = normalizeLink(raw.link);
+      note.attachments = (Array.isArray(raw.attachments) ? raw.attachments : [])
+        .filter(function (a) {
+          return a && typeof a.name === 'string' && a.name && typeof a.key === 'string' && a.key;
+        })
+        .map(function (a) {
+          return { name: String(a.name).slice(0, 200), size: typeof a.size === 'number' ? a.size : 0,
+            type: typeof a.type === 'string' ? a.type : '', key: String(a.key).slice(0, 100) };
+        });
       note.checked = !!raw.checked;
       return note;
     });

@@ -2,13 +2,14 @@
  * Travel Board service worker: caches the app files so it opens with no connection.
  * When any app file changes, bump CACHE_VERSION so devices pick up the new files.
  */
-var CACHE_VERSION = 'travelboard-v11';
+var CACHE_VERSION = 'travelboard-v12';
 var APP_FILES = [
   './',
   'index.html',
   'styles.css',
   'model.js',
   'docx.js',
+  'attachments.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon-180.png',

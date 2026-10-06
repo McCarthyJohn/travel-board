@@ -100,6 +100,37 @@
     return note.status === 'placeholder' ? 'is-placeholder' : 'is-confirmed';
   }
 
+  // Show a stored attachment (PDF/image/whatever): hand it to the system viewer.
+  function openBlob(blob, att) {
+    try {
+      var url = URL.createObjectURL(blob);
+      var w = window.open(url, '_blank');
+      if (!w) toast('Allow pop-ups to view ' + (att && att.name ? att.name : 'the file'));
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    } catch (e) {
+      toast('Could not open the file here');
+    }
+  }
+
+  // Attachment rows on the note page: name - size - Open.
+  function attSummaryRows(note) {
+    var box = h('div', null);
+    (note.attachments || []).forEach(function (a) {
+      var btn = h('button', {
+        class: 'link-btn', type: 'button', text: a.name + ' - ' + TBAtt.humanSize(a.size),
+        'aria-label': 'Open ' + a.name,
+        onclick: function () {
+          TBAtt.getFile(a.key).then(function (blob) {
+            if (!blob) { toast('File not on this device'); return; }
+            openBlob(blob, a);
+          }, function () { toast('File storage error'); });
+        }
+      });
+      box.appendChild(h('p', null, btn));
+    });
+    return box;
+  }
+
   // One-tap open of the note's website link.
   function linkButton(note) {
     return h('button', {
@@ -313,6 +344,7 @@
   function editSheet(noteId) {
     var note = TB.getNote(state, noteId);
     if (!note) return;
+    var workingNote = note; // attachments edit in place: stored straight to device storage
     openSheet('Edit ' + TB.kindOf(note.kind).label.toLowerCase(), function (body, close) {
       var isRoot = note.id === state.rootId;
       var kindDef = TB.kindOf(note.kind);
@@ -384,6 +416,67 @@
       if (has('reference')) form.appendChild(field('Reference', reference));
       var linkInput = h('input', { type: 'url', inputmode: 'url', value: note.link || '', autocomplete: 'off', placeholder: 'e.g. qantas.com/booking or a maps link' });
       form.appendChild(field('Website link', linkInput));
+
+      // ----- attachments -----
+      var attBox = h('div', { class: 'field' });
+      var attHead = h('span', { text: 'Documents' });
+      var attList = h('div', { class: 'att-list' });
+      var attBusy = false;
+      function renderAttList() {
+        attList.textContent = '';
+        (workingNote.attachments || []).forEach(function (a, i) {
+          attList.appendChild(h('div', { class: 'att-row' },
+            h('span', { class: 'att-name', text: a.name }),
+            h('span', { class: 'att-size', text: TBAtt.humanSize(a.size) }),
+            h('button', { class: 'small-btn', type: 'button', text: 'Open',
+              onclick: function () {
+                TBAtt.getFile(a.key).then(function (blob) {
+                  if (!blob) { toast('File not on this device — restore it from the trip file it came from'); return; }
+                  openBlob(blob, a);
+                }, function () { toast('File storage error'); });
+              } }),
+            h('button', { class: 'small-btn', type: 'button', text: 'Remove',
+              onclick: function () {
+                workingNote.attachments.splice(i, 1);
+                saveState();
+                renderAttList();
+                render(); // card behind updates straight away
+              } })))
+        });
+        if (!(workingNote.attachments || []).length) {
+          attList.appendChild(h('p', { class: 'note-line', text: 'No documents yet. Add the confirmation or e-ticket.' }));
+        }
+      }
+      var pickBtn = h('button', { class: 'btn', type: 'button', text: 'Attach from Files', onclick: function () { if (!attBusy) filePick.click(); } });
+      var filePick = h('input', { type: 'file', class: 'visually-hidden',
+        onchange: function (e) {
+          var f = (e.target.files && e.target.files[0]) ||
+                  (e.target.attrs && e.target.attrs.files && e.target.attrs.files[0]);
+          e.target.value = '';
+          if (!f || attBusy) return;
+          if (f.size > TBAtt.MAX_BYTES) {
+            toast('That file is ' + TBAtt.humanSize(f.size) + ' — over the 10 MB guide. Try a PDF save or a smaller photo.');
+            return;
+          }
+          attBusy = true;
+          toast('Saving ' + f.name);
+          TBAtt.attach(workingNote.id, f).then(function (meta) {
+            workingNote.attachments.push(meta);
+            saveState();
+            renderAttList();
+            render(); // the card behind the sheet updates straight away
+            attBusy = false;
+          }, function (err) {
+            toast(err && err.message ? err.message : 'Could not save the file');
+            attBusy = false;
+          });
+        } });
+      attBox.appendChild(attHead);
+      attBox.appendChild(attList);
+      attBox.appendChild(pickBtn);
+      attBox.appendChild(filePick);
+      form.appendChild(attBox);
+      renderAttList();
       if (has('checked')) {
         var tickLabel = note.kind === 'payment' ? 'Paid in full' : 'Packed or done';
         form.appendChild(h('label', { class: 'field' }, h('span', { text: tickLabel }), checked));
@@ -693,7 +786,61 @@
           }
         })));
 
-      body.appendChild(h('hr'));
+            body.appendChild(h('div', { class: 'sheet-actions' },
+        h('button', {
+          class: 'btn', type: 'button', text: 'Export trip file',
+          onclick: function () {
+            try {
+              toast('Packing trip and documents');
+              TBAtt.packTripFile(TB.exportJSON(state), state.notes).then(function (manifest) {
+                var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+                var name = (function () {
+                  var t = TB.getNote(state, state.rootId);
+                  var slug = String(t && t.title ? t.title : 'trip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'trip';
+                  return slug + '.tripboard';
+                })();
+                var url = URL.createObjectURL(blob);
+                var a = h('a', { href: url, download: name });
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                toast('Trip file saved \u2014 check Downloads / Files');
+              }, function (err) {
+                toast(err && err.message ? err.message : 'Could not build the trip file');
+              });
+            } catch (e) { toast('Could not build the trip file'); }
+          }
+        }),
+        h('button', {
+          class: 'btn', type: 'button', text: 'Restore trip file',
+          onclick: function () { tripFilePick.click(); }
+        })));
+      var tripFilePick = h('input', { type: 'file', accept: '.tripboard,application/json', class: 'visually-hidden',
+        onchange: function (e) {
+          var f = (e.target.files && e.target.files[0]) ||
+                  (e.target.attrs && e.target.attrs.files && e.target.attrs.files[0]);
+          e.target.value = '';
+          if (!f) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            try {
+              var unpacked = TBAtt.unpackTripFile(String(reader.result));
+              if (!window.confirm('Bring in "' + f.name + '" and replace the current trip? Documents travel inside the file.')) return;
+              TBAtt.storeFiles(unpacked.files).then(function () {
+                var restored = TB.importJSON(unpacked.tripJson, true);
+                state = restored; focusId = state.rootId;
+                saveState(); close(); render();
+                toast('Trip and ' + unpacked.files.length + ' document' + (unpacked.files.length === 1 ? '' : 's') + ' restored');
+                TBAtt.pruneOrphans(state.notes);
+              }, function () { toast('Could not store the documents'); });
+            } catch (err) {
+              toast(err && err.message ? err.message : 'That file is not a Travel Board trip file');
+            }
+          };
+          reader.onerror = function () { toast('Could not read the file'); };
+          reader.readAsText(f);
+        } });
+
+body.appendChild(h('hr'));
       body.appendChild(pasted);
       body.appendChild(h('div', { class: 'sheet-actions' },
         h('button', {
@@ -708,6 +855,7 @@
               close();
               render();
               toast('Backup restored');
+              TBAtt.pruneOrphans(state.notes); // files left over from the replaced trip
             } catch (err) {
               toast(err.message);
             }
@@ -717,7 +865,9 @@
           class: 'btn danger', type: 'button', text: 'Start a new trip',
           onclick: function () {
             if (!window.confirm('Delete the current trip and start a new one? Copy a backup first if you want to keep it.')) return;
+            var oldNotes = state && state.notes ? state.notes.slice() : [];
             try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+            TBAtt.pruneOrphans(oldNotes);
             state = null;
             focusId = null;
             close();
@@ -779,6 +929,7 @@
     if (prompt) bits.push(h('p', null, h('span', { class: 'tag', text: prompt })));
     if (focus.reference) bits.push(h('p', { text: 'Reference: ' + focus.reference }));
     if (focus.link) bits.push(h('p', null, linkButton(focus)));
+    if ((focus.attachments || []).length) bits.push(attSummaryRows(focus));
     if (focus.details) bits.push(h('p', { text: focus.details }));
     return bits.length ? h('div', { class: 'summary' }, bits) : null;
   }
@@ -835,6 +986,9 @@
     if (note.reference) meta.appendChild(h('span', { text: 'Ref ' + note.reference }));
     var tick = tickText(note);
     if (tick) meta.appendChild(h('span', { class: 'tag', text: tick }));
+    if ((note.attachments || []).length) {
+      meta.appendChild(h('span', { class: 'tag', text: '[doc] ' + note.attachments.length }));
+    }
 
     var head = h('div', { class: 'card-head' },
       h('button', { class: 'card-title', type: 'button', text: note.title, onclick: function () { editSheet(note.id); } }),
