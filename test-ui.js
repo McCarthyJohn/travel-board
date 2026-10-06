@@ -239,6 +239,30 @@ step('adding a note inside works and the packing tick box saves', function () {
   assert.strictEqual(s.notes.filter(function (n) { return n.title === 'Passport'; })[0].kind, 'item');
 });
 
+step('a flight link saves, shows a Link button, and opens the address', function () {
+  // We are on the Packing page. Back to Home, then trip; the flight card is 3rd.
+  button(elements.app, 'Back').fire('click');
+  button(elements.app, 'Back').fire('click');
+  // Stay on the trip page; edit the flight via its card-title button (text has the arrow).
+  var none = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Link'; });
+  assert.strictEqual(none.length, 0, 'Link button showed before any link was set');
+  button(elements.app, 'Home \u2192 Singapore').fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  var urlInput = all(sheet, function (n) { return n.tagName === 'input' && n.attrs.type === 'url'; })[0];
+  assert.ok(urlInput, 'Website link field missing from edit sheet');
+  urlInput.value = 'jetstar.com/manage';
+  all(sheet, function (n) { return n.tagName === 'form'; })[0].fire('submit');
+  // Card now shows Link; tapping it opens the normalised address.
+  var opened = [];
+  window.open = function (u) { opened.push(u); return {}; };
+  var linkBtn = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Link'; })[0];
+  assert.ok(linkBtn, 'Link button not shown after saving a link');
+  linkBtn.fire('click');
+  assert.deepStrictEqual(opened, ['https://jetstar.com/manage']);
+  var s = savedState();
+  assert.strictEqual(s.notes.filter(function (n) { return n.kind === 'train'; })[0].link, 'https://jetstar.com/manage');
+});
+
 step('backup shows the data and restore replaces the trip', function () {
   button(elements.app, 'Backup').fire('click');
   var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];

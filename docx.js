@@ -129,6 +129,43 @@
     '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/>' +
     '</w:sectPr></w:body></w:document>';
 
+  // ---- hyperlinks ----
+  // A .docx link is a relationship (word/_rels/document.xml.rels) plus a
+  // <w:hyperlink r:id="..."> run referencing it.
+  var LINK_RELS = []; // rebuilt per document
+
+  function resetLinks() { LINK_RELS = []; }
+
+  function linkRelId(url) {
+    for (var i = 0; i < LINK_RELS.length; i++) {
+      if (LINK_RELS[i].url === url) return LINK_RELS[i].id;
+    }
+    var id = 'rIdLink' + (LINK_RELS.length + 1);
+    LINK_RELS.push({ id: id, url: url });
+    return id;
+  }
+
+  // r namespace is needed on the hyperlink element (declared inline).
+  function linkPara(url, label) {
+    var id = linkRelId(url);
+    var run = '<w:r><w:rPr><w:color w:val="185FA5"/><w:u/></w:rPr>' +
+      '<w:t xml:space="preserve">' + esc(label || url) + '</w:t></w:r>';
+    return '<w:p><w:hyperlink r:id="' + id + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      run + '</w:hyperlink></w:p>';
+  }
+
+  // DOC_RELS becomes dynamic: styles relationship + one per link used.
+  function buildDocRels() {
+    var rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+    LINK_RELS.forEach(function (l) {
+      rels += '<Relationship Id="' + l.id +
+        '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="' +
+        esc(l.url) + '" TargetMode="External"/>';
+    });
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>';
+  }
+
   var CONTENT_TYPES =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -205,13 +242,20 @@
     return true;
   }
 
+  // Add the note's link paragraph (call for any included note that has one).
+  function linkLine(note, out) {
+    if (note.link) out.push(linkPara(note.link, 'Open link: ' + note.link));
+  }
+
   function buildParagraphs(state, focusId, filter) {
+    resetLinks();
     var focus = TB.getNote(state, focusId);
     var out = [];
     out.push(para({ style: 'Heading1', runs: [{ text: focus.title }] }));
     var m = metaText(focus);
     if (m) out.push(para({ runs: [{ text: m, italic: true, small: true, colour: '5F5E5A' }] }));
     if (focus.details) out.push(para({ runs: [{ text: focus.details }] }));
+    linkLine(focus, out);
     TB.children(state, focus.id).forEach(function (child) {
       section(state, child, out, filter);
     });
@@ -224,6 +268,7 @@
       var m = metaText(note);
       if (m) out.push(para({ runs: [{ text: m, italic: true, small: true, colour: '5F5E5A' }] }));
       if (note.details) out.push(para({ runs: [{ text: note.details }] }));
+      linkLine(note, out);
       TB.children(state, note.id).forEach(function (c) {
         bulletDeep(state, c, 0, out, filter);
       });
@@ -249,6 +294,7 @@
     var runs = [{ text: indent + '\u2022  ' + note.title }];
     if (m) runs.push({ text: '   ' + m, italic: true, small: true, colour: '5F5E5A' });
     out.push(para({ runs: runs }));
+    linkLine(note, out);
     TB.children(state, note.id).forEach(function (c) {
       bulletDeep(state, c, depth + 1, out, filter);
     });
@@ -273,7 +319,7 @@
       { name: '[Content_Types].xml', data: utf8Bytes(CONTENT_TYPES) },
       { name: '_rels/.rels', data: utf8Bytes(ROOT_RELS) },
       { name: 'word/document.xml', data: utf8Bytes(documentXml(state, focusId, filter)) },
-      { name: 'word/_rels/document.xml.rels', data: utf8Bytes(DOC_RELS) },
+      { name: 'word/_rels/document.xml.rels', data: utf8Bytes(buildDocRels()) },
       { name: 'word/styles.xml', data: utf8Bytes(STYLES) }
     ]);
   }

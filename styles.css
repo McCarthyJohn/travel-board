@@ -326,6 +326,18 @@ button {
 .kind-swatch { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--bd); background: var(--bg); flex: none; }
 .kind-name { flex: 1; font-weight: 600; overflow-wrap: anywhere; }
 
+/* ---- note website link ---- */
+.link-btn {
+  border: 1px solid var(--focus);
+  color: var(--focus);
+  background: var(--white);
+  border-radius: 10px;
+  padding: 4px 14px;
+  min-height: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* ---- export filter ---- */
 .filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .filter-chip {

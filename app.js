@@ -99,6 +99,15 @@
     return note.status === 'placeholder' ? 'is-placeholder' : 'is-confirmed';
   }
 
+  // One-tap open of the note's website link.
+  function linkButton(note) {
+    return h('button', {
+      class: 'link-btn', type: 'button', text: 'Open link',
+      'aria-label': 'Open link: ' + (note.link || ''),
+      onclick: function () { window.open(note.link, '_blank'); }
+    });
+  }
+
   // 'Packed' / 'Paid' / '' for kinds with a tick box.
   function tickText(note) {
     if (note.kind === 'item') return note.checked ? 'Packed' : '';
@@ -347,6 +356,7 @@
           }
           if (has('route')) { patch.from = from.value; patch.to = to.value; }
           if (has('reference')) patch.reference = reference.value;
+          patch.link = linkInput.value; // validated/normalised by the model; every note may hold one
           if (has('checked')) patch.checked = checked.checked;
           if (status.value !== note.status) patch.status = status.value;
           TB.updateNote(state, note.id, patch);
@@ -370,6 +380,8 @@
       }
       if (has('route')) form.appendChild(h('div', { class: 'row' }, field('From place', from), field('To place', to)));
       if (has('reference')) form.appendChild(field('Reference', reference));
+      var linkInput = h('input', { type: 'url', inputmode: 'url', value: note.link || '', autocomplete: 'off', placeholder: 'e.g. qantas.com/booking or a maps link' });
+      form.appendChild(field('Website link', linkInput));
       if (has('checked')) {
         var tickLabel = note.kind === 'payment' ? 'Paid in full' : 'Packed or done';
         form.appendChild(h('label', { class: 'field' }, h('span', { text: tickLabel }), checked));
@@ -425,6 +437,7 @@
       var rootMeta = TBDocx.metaText(node);
       if (rootMeta) view.appendChild(h('p', { class: 'itin-meta', text: rootMeta }));
       if (node.details) view.appendChild(h('p', { class: 'itin-detail', text: node.details }));
+      if (node.link) view.appendChild(linkButton(node));
     }
     TB.children(state, node.id).forEach(function (child) {
       if (!keep[child.kind]) return;
@@ -432,6 +445,7 @@
       var m = TBDocx.metaText(child);
       if (m) view.appendChild(h('p', { class: 'itin-meta', text: m }));
       if (child.details) view.appendChild(h('p', { class: 'itin-detail', text: child.details }));
+      if (child.link) view.appendChild(linkButton(child));
       TB.children(state, child.id).forEach(function (c) {
         appendDeep(view, c, 0);
       });
@@ -463,6 +477,7 @@
     var m = TBDocx.metaText(note);
     if (m) line.appendChild(h('span', { class: 'itin-meta', text: '  ' + m }));
     row.appendChild(line);
+    if (note.link) row.appendChild(linkButton(note));
     view.appendChild(row);
   }
 
@@ -761,6 +776,7 @@
     if (dates) bits.push(h('p', { text: dates }));
     if (prompt) bits.push(h('p', null, h('span', { class: 'tag', text: prompt })));
     if (focus.reference) bits.push(h('p', { text: 'Reference: ' + focus.reference }));
+    if (focus.link) bits.push(h('p', null, linkButton(focus)));
     if (focus.details) bits.push(h('p', { text: focus.details }));
     return bits.length ? h('div', { class: 'summary' }, bits) : null;
   }
@@ -821,6 +837,10 @@
     var head = h('div', { class: 'card-head' },
       h('button', { class: 'card-title', type: 'button', text: note.title, onclick: function () { editSheet(note.id); } }),
       h('div', { class: 'card-actions' },
+        (note.link ? h('button', {
+          class: 'small-btn', type: 'button', text: 'Link', 'aria-label': 'Open the website for ' + note.title,
+          onclick: function () { window.open(note.link, '_blank'); }
+        }) : null),
         h('button', {
           class: 'small-btn', type: 'button', text: 'Up', disabled: position === 0, 'aria-label': 'Move ' + note.title + ' up',
           onclick: function () { TB.moveNote(state, note.id, -1); saveState(); render(); }

@@ -220,7 +220,7 @@
 
   var STATUSES = ['placeholder', 'confirmed'];
   var EDITABLE = ['kind', 'title', 'details', 'startDate', 'endDate', 'from', 'to',
-    'status', 'reference', 'checked', 'startTime', 'endTime'];
+    'status', 'reference', 'checked', 'startTime', 'endTime', 'link'];
 
   // ---------- helpers ----------
 
@@ -289,6 +289,7 @@
       reference: '',
       startTime: '',
       endTime: '',
+      link: '',
       checked: false
     };
   }
@@ -332,6 +333,17 @@
 
   var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+  // Attachable web link: stored as plain text so backups/JSON keep working.
+  // Accepts anything a person pastes; normalises to an absolute http(s) URL.
+  // javascript:/data: etc. are rejected — a link must be a web address.
+  function normalizeLink(v) {
+    var s = str(v).trim();
+    if (!s) return '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s; // bare "qantas.com" gets a scheme
+    if (!/^https?:\/\//i.test(s)) return '';                 // only web links allowed
+    return s;
+  }
+
   function applyFields(note, patch) {
     EDITABLE.forEach(function (key) {
       if (!Object.prototype.hasOwnProperty.call(patch, key)) return;
@@ -345,6 +357,8 @@
         note[key] = parseDate(v) === null ? '' : v;
       } else if (key === 'startTime' || key === 'endTime') {
         note[key] = TIME_RE.test(str(v)) ? v : '';
+      } else if (key === 'link') {
+        note.link = normalizeLink(v);
       } else if (key === 'status') {
         if (STATUSES.indexOf(v) !== -1) note.status = v;
       } else if (key === 'checked') {
@@ -582,6 +596,7 @@
       note.reference = str(raw.reference);
       note.startTime = TIME_RE.test(str(raw.startTime)) ? raw.startTime : '';
       note.endTime = TIME_RE.test(str(raw.endTime)) ? raw.endTime : '';
+      note.link = normalizeLink(raw.link);
       note.checked = !!raw.checked;
       return note;
     });
