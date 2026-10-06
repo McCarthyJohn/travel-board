@@ -87,6 +87,7 @@
     if (note.startTime && note.endTime) t = ', ' + note.startTime + ' to ' + note.endTime;
     else if (note.startTime) t = ', ' + note.startTime;
     if (note.startDate && note.endDate) {
+      if (n === 0) return 'On ' + fmtDate(note.startDate) + t;
       return fmtDate(note.startDate) + ' to ' + fmtDate(note.endDate) + (n !== null ? ' · ' + plural(n, 'night') : '') + t;
     }
     if (note.startDate) return 'From ' + fmtDate(note.startDate) + t;
@@ -338,7 +339,8 @@
       function refreshNights() {
         var probe = { startDate: start.value, endDate: end.value };
         var n = TB.nights(probe);
-        nightsLine.textContent = n !== null ? plural(n, 'night') : 'Nights: add both dates';
+        if (n === null) { nightsLine.textContent = 'Nights: add both dates'; return; }
+        nightsLine.textContent = n === 0 ? 'Same day' : plural(n, 'night');
       }
       start.addEventListener('input', refreshNights);
       end.addEventListener('input', refreshNights);

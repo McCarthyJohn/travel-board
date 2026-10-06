@@ -214,8 +214,10 @@
     var n = TB.nights(note);
     var when = '';
     if (note.startDate && note.endDate) {
-      when = fmtDate(note.startDate) + ' to ' + fmtDate(note.endDate) +
-        (n !== null ? ' \u00B7 ' + n + (n === 1 ? ' night' : ' nights') : '');
+      when = n === 0
+        ? 'on ' + fmtDate(note.startDate)
+        : fmtDate(note.startDate) + ' to ' + fmtDate(note.endDate) +
+          (n !== null ? ' \u00B7 ' + n + (n === 1 ? ' night' : ' nights') : '');
     } else if (note.startDate) {
       when = 'from ' + fmtDate(note.startDate);
     } else if (note.endDate) {
