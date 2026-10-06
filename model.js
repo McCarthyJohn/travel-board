@@ -51,10 +51,10 @@
       label: 'Place', colour: 'amber', prompt: 'Add dates', fields: ['dates'],
       starters: [{ kind: 'stay', title: 'Stay' }, { kind: 'activity', title: 'Things to do' }, { kind: 'restaurant', title: 'Eat' }]
     },
-    flight:     { label: 'Flight',     colour: 'blue',   prompt: 'Book flight', fields: ['route', 'times', 'reference'],
+    flight:     { label: 'Flight',     colour: 'blue',   prompt: 'Book flight', fields: ['route', 'dates', 'times', 'reference'],
       starters: [{ kind: 'payment', title: 'Payment' }, { kind: 'seat', title: 'Seats & bags' }],
       times: { from: 'Departure time', to: 'Arrival time' } },
-    train:      { label: 'Train',      colour: 'blue',   prompt: 'Book train',  fields: ['route', 'times', 'reference'],
+    train:      { label: 'Train',      colour: 'blue',   prompt: 'Book train',  fields: ['route', 'dates', 'times', 'reference'],
       starters: [{ kind: 'payment', title: 'Payment' }, { kind: 'seat', title: 'Seats & bags' }],
       times: { from: 'Departure time', to: 'Arrival time' } },
     transfer:   { label: 'Transfer',   colour: 'grey',   prompt: 'Work out how', fields: ['route', 'times'],
