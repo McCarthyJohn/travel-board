@@ -141,6 +141,10 @@
   }
 
   // 'Packed' / 'Paid' / '' for kinds with a tick box.
+  function moneyStr(v) {
+    return '$' + Number(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
   function tickText(note) {
     if (note.kind === 'item') return note.checked ? 'Packed' : '';
     if (note.kind === 'payment') return note.checked ? 'Paid' : '';
@@ -396,6 +400,7 @@
           if (has('reference')) patch.reference = reference.value;
           patch.link = linkInput.value; // validated/normalised by the model; every note may hold one
           if (has('checked')) patch.checked = checked.checked;
+          if (form._amountInput) patch.amount = form._amountInput.value; // '' -> 0, digits -> number
           if (status.value !== note.status) patch.status = status.value;
           TB.updateNote(state, note.id, patch);
           saveState();
@@ -484,6 +489,12 @@
       if (has('checked')) {
         var tickLabel = note.kind === 'payment' ? 'Paid in full' : 'Packed or done';
         form.appendChild(h('label', { class: 'field' }, h('span', { text: tickLabel }), checked));
+      }
+      if (note.kind === 'payment') {
+        var amount = h('input', { type: 'text', inputmode: 'decimal', value: note.amount ? String(note.amount) : '',
+          autocomplete: 'off', placeholder: 'Leave blank if not known yet' });
+        form.appendChild(field('Amount', amount));
+        form._amountInput = amount; // picked up by the save handler below
       }
       form.appendChild(field('Status', status));
 
@@ -1049,6 +1060,7 @@ body.appendChild(h('hr'));
     var dates = datesText(note);
     if (dates) meta.appendChild(h('span', { text: dates }));
     if (note.reference) meta.appendChild(h('span', { text: 'Ref ' + note.reference }));
+    if (note.kind === 'payment' && note.amount) meta.appendChild(h('span', { class: 'tag', text: moneyStr(note.amount) }));
     var tick = tickText(note);
     if (tick) meta.appendChild(h('span', { class: 'tag', text: tick }));
     if ((note.attachments || []).length) {
@@ -1122,6 +1134,32 @@ body.appendChild(h('hr'));
     render();
   }
 
+  // Money page: roll-up of every payment across the whole trip.
+  function isMoneyPage(focus) {
+    return focus.kind !== 'trip' && focus.title.trim().toLowerCase() === 'money';
+  }
+
+  function renderLedger(focus) {
+    var rootId = TB.pathTo(state, focus.id)[0].id;
+    var l = TB.moneyLedger(state, rootId);
+    var box = h('div', { class: 'summary ledger' });
+    box.appendChild(h('p', { class: 'ledger-title', text: 'Money across ' + TB.getNote(state, rootId).title }));
+    if (l.owed.length) {
+      box.appendChild(h('p', null, h('span', { class: 'tag warn', text: 'Still to pay: ' + moneyStr(l.owedTotal) })));
+      l.owed.forEach(function (e) {
+        box.appendChild(h('p', { class: 'ledger-row', text: (e.amount ? moneyStr(e.amount) + ' \u2014 ' : '') +
+          e.title + ' (' + e.owner + ')' }));
+      });
+    } else {
+      box.appendChild(h('p', null, h('span', { class: 'tag', text: 'Nothing waiting to be paid' })));
+    }
+    if (l.paidTotal) {
+      box.appendChild(h('p', { class: 'ledger-row', text: 'Paid so far: ' + moneyStr(l.paidTotal) +
+        (l.paid.length ? ' (' + l.paid.length + (l.paid.length === 1 ? ' payment' : ' payments') + ')' : '') }));
+    }
+    return box;
+  }
+
   function renderBody(focus) {
     var isTrip = focus.kind === 'trip';
     var isBagView = focus.kind === 'bag' || focus.kind === 'packing';
@@ -1130,6 +1168,7 @@ body.appendChild(h('hr'));
     var wrap = h('div');
     var summary = renderSummary(focus);
     if (summary) wrap.appendChild(summary);
+    if (isMoneyPage(focus)) wrap.appendChild(renderLedger(focus));
     if (isBagView) {
       wrap.appendChild(h('div', { class: 'quick-add quick-add-page' },
         h('button', {

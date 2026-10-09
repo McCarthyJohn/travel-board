@@ -228,7 +228,10 @@
     if (when) bits.push(when);
     if (note.reference) bits.push('Ref ' + note.reference);
     if (note.kind === 'item') bits.push(note.checked ? 'packed' : 'not packed');
-    if (note.kind === 'payment') bits.push(note.checked ? 'paid' : 'unpaid');
+    if (note.kind === 'payment') {
+      bits.push(note.checked ? 'paid' : 'unpaid');
+      if (note.amount) bits.push('$' + Number(note.amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    }
     var prompt = TB.promptFor(note);
     if (prompt) bits.push('Still to sort: ' + prompt);
     return bits.join(' \u00B7 ');

@@ -220,7 +220,7 @@
 
   var STATUSES = ['placeholder', 'confirmed'];
   var EDITABLE = ['kind', 'title', 'details', 'startDate', 'endDate', 'from', 'to',
-    'status', 'reference', 'checked', 'startTime', 'endTime', 'link'];
+    'status', 'reference', 'checked', 'startTime', 'endTime', 'link', 'amount'];
 
   // ---------- helpers ----------
 
@@ -291,7 +291,8 @@
       endTime: '',
       link: '',
       attachments: [],
-      checked: false
+      checked: false,
+      amount: 0
     };
   }
 
@@ -364,6 +365,9 @@
         if (STATUSES.indexOf(v) !== -1) note.status = v;
       } else if (key === 'checked') {
         note.checked = !!v;
+      } else if (key === 'amount') {
+        var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+        note.amount = (typeof num === 'number' && isFinite(num) && num >= 0) ? Math.round(num * 100) / 100 : 0;
       } else {
         note[key] = str(v);
       }
@@ -428,6 +432,25 @@
     state.notes = state.notes.filter(function (n) { return !doomed[n.id]; });
     renumber(state, parentId);
     return true;
+  }
+
+  // Money ledger: every payment note in the subtree, grouped by paid/owed, with the
+  // nearest non-payment ancestor as the booking it belongs to.
+  function moneyLedger(state, rootId) {
+    var root = getNote(state, rootId);
+    if (!root) return { paid: [], owed: [], paidTotal: 0, owedTotal: 0 };
+    var paid = [], owed = [];
+    function walk(note, owner) {
+      var nextOwner = note.kind === 'payment' ? owner : note.title;
+      if (note.kind === 'payment') {
+        var entry = { title: note.title, amount: note.amount || 0, owner: owner, reference: note.reference };
+        (note.checked ? paid : owed).push(entry);
+      }
+      children(state, note.id).forEach(function (c) { walk(c, nextOwner); });
+    }
+    walk(root, root.title);
+    var sum = function (list) { return list.reduce(function (t, e) { return t + e.amount; }, 0); };
+    return { paid: paid, owed: owed, paidTotal: sum(paid), owedTotal: sum(owed) };
   }
 
   // Move a note up (-1) or down (+1) among its siblings. Position only: dates never change.
@@ -607,6 +630,8 @@
             type: typeof a.type === 'string' ? a.type : '', key: String(a.key).slice(0, 100) };
         });
       note.checked = !!raw.checked;
+      note.amount = (typeof raw.amount === 'number' && isFinite(raw.amount) && raw.amount >= 0)
+        ? Math.round(raw.amount * 100) / 100 : 0;
       return note;
     });
 
@@ -649,6 +674,7 @@
     HOLD_LABELS: HOLD_LABELS,
     COLOURS: COLOURS,
     SUGGESTIONS: SUGGESTIONS,
+    moneyLedger: moneyLedger,
     suggestCategoryFor: suggestCategoryFor,
     suggestionCategory: suggestionCategory,
     existingTitles: existingTitles,

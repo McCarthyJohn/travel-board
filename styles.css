@@ -82,6 +82,11 @@ button {
   padding: 0 14px;
 }
 
+/* ---- money ledger ---- */
+.ledger { border-style: solid; }
+.ledger-title { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
+.ledger-row { font-size: 15px; }
+
 /* ---- focus summary ---- */
 .summary {
   background: var(--white);

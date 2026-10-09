@@ -469,6 +469,45 @@ step('trip basics: Edit shows Leaving/Back dates and From/To places, and saves t
   assert.ok(summary && summary.textContent.indexOf('Melbourne \u2192 Rome') !== -1, 'route line missing from summary');
 });
 
+step('payment amount: edit sheet takes an amount, card shows it', function () {
+  // From whatever page we are on, go back to the trip page first.
+  var back = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; });
+  if (back.length) back[back.length - 1].fire('click');
+  // Open the flight's Payment chip's edit sheet via the chip button.
+  var chip = all(elements.app, function (n) { return n.className.indexOf('chip ') === 0 && n.textContent.indexOf('Payment') !== -1; })[0];
+  chip.fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  var amt = all(sheet, function (n) { return n.tagName === 'input' && n.attrs.inputmode === 'decimal'; })[0];
+  assert.ok(amt, 'amount input missing on payment sheet');
+  amt.value = '1870.50';
+  all(sheet, function (n) { return n.tagName === 'form'; })[0].fire('submit');
+  var s = savedState();
+  var pays = s.notes.filter(function (n) { return n.kind === 'payment' && n.amount === 1870.5; });
+  assert.strictEqual(pays.length, 1, 'amount not saved');
+  assert.ok(chip.textContent.indexOf('Payment') !== -1, 'chip gone');
+  // Go to the journey page and check the payment card meta carries the amount.
+  var jOpen = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Open' && n.getAttribute('aria-label') === 'Open Home \u2192 Singapore'; })[0];
+  assert.ok(jOpen, 'journey Open button not found');
+  jOpen.fire('click');
+  var cards = all(elements.app, function (n) { return n.className === 'meta' && n.textContent.indexOf('$1,870.50') !== -1; });
+  assert.ok(cards.length >= 1, 'amount tag missing on card: ' +
+    JSON.stringify(all(elements.app, function (n) { return n.className === 'meta'; }).map(function (n) { return n.textContent; })));
+});
+
+step('money page shows the ledger roll-up', function () {
+  // Back out to the trip page first (we are inside the journey).
+  while (all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; }).length) {
+    all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; })[0].fire('click');
+  }
+  var moneyCard = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Open' && n.getAttribute('aria-label') === 'Open Money'; })[0];
+  assert.ok(moneyCard, 'Money Open not found on trip page');
+  moneyCard.fire('click');
+  var ledger = all(elements.app, function (n) { return n.className.indexOf('ledger') !== -1; })[0];
+  assert.ok(ledger, 'ledger missing on money page');
+  assert.ok(ledger.textContent.indexOf('Still to pay: $1,870.50') !== -1, 'owed total wrong: ' + ledger.textContent);
+  assert.ok(ledger.textContent.indexOf('Nothing waiting') === -1, 'should show an owed line');
+});
+
 step('itinerary sheet offers Copy text alongside Word', function () {
   button(elements.app, 'Itinerary').fire('click');
   var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
@@ -478,7 +517,10 @@ step('itinerary sheet offers Copy text alongside Word', function () {
 });
 
 step('attach a document to the flight: picker stores it, paperclip shows, restore keeps the name', function () {
-  // On the trip page (from the backup-restore step). Open the train card's edit sheet.
+  // Back out to the trip page (the money step left us inside the Money page).
+  while (all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; }).length) {
+    all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; })[0].fire('click');
+  }
   button(elements.app, 'Home \u2192 Singapore').fire('click');
   var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
   var pickBtn = all(sheet, function (n) { return n.tagName === 'button' && n.textContent === 'Attach from Files'; })[0];
