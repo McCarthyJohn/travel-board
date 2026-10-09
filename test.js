@@ -276,3 +276,21 @@ test('every kind is complete and every starter points at a real kind', function 
 });
 
 console.log('\n' + passed + ' checks passed' + (process.exitCode ? ', with failures' : ''));
+
+// Migration: v1 backups carried Money/Documents as generic 'other'; v2 promotes by title.
+(function migrationTest() {
+  var v1 = {
+    version: 1, rootId: 'r',
+    notes: [
+      { id: 'r', parentId: null, position: 0, kind: 'trip', title: 'Old trip' },
+      { id: 'd', parentId: 'r', position: 0, kind: 'other', title: 'Documents' },
+      { id: 'm', parentId: 'r', position: 1, kind: 'other', title: 'money' },
+      { id: 'k', parentId: 'r', position: 2, kind: 'other', title: 'Keep me' }
+    ], customKinds: []
+  };
+  var s = TB.importJSON(JSON.stringify(v1));
+  assert.strictEqual(TB.getNote(s, 'd').kind, 'documents');
+  assert.strictEqual(TB.getNote(s, 'm').kind, 'money', 'title match is case-insensitive');
+  assert.strictEqual(TB.getNote(s, 'k').kind, 'other', 'only Money/Documents are promoted');
+  console.log('ok   - v1 backups migrate Money/Documents to their own kinds');
+})();

@@ -372,7 +372,9 @@
       // Trip-level basics: the trip itself carries From/To and overall dates.
       if (isRoot) { hasTimes = false; timeLabels = { from: 'Starts at', to: null }; }
       var dateLabels = isRoot ? { from: 'Leaving', to: 'Back' }
-        : (kindDef.fields.indexOf('dates') !== -1 ? { from: 'From', to: 'To' } : null);
+        : (kindDef.fields.indexOf('dates') !== -1
+          ? (kindDef.dateLabels || { from: 'From', to: 'To' })
+          : null);
       var startTime = hasTimes ? h('input', { type: 'time', value: note.startTime }) : null;
       var endTime = (hasTimes && timeLabels.to) ? h('input', { type: 'time', value: note.endTime }) : null;
 
@@ -1061,6 +1063,13 @@ body.appendChild(h('hr'));
     if (dates) meta.appendChild(h('span', { text: dates }));
     if (note.reference) meta.appendChild(h('span', { text: 'Ref ' + note.reference }));
     if (note.kind === 'payment' && note.amount) meta.appendChild(h('span', { class: 'tag', text: moneyStr(note.amount) }));
+    if (note.kind === 'doc') {
+      var dLeft = TB.expiryDays(note);
+      if (dLeft !== null && dLeft < 183) {
+        meta.appendChild(h('span', { class: 'tag warn', text: dLeft < 0 ? 'Expired'
+          : 'Expires in ' + dLeft + (dLeft === 1 ? ' day' : ' days') }));
+      }
+    }
     var tick = tickText(note);
     if (tick) meta.appendChild(h('span', { class: 'tag', text: tick }));
     if ((note.attachments || []).length) {
@@ -1136,7 +1145,7 @@ body.appendChild(h('hr'));
 
   // Money page: roll-up of every payment across the whole trip.
   function isMoneyPage(focus) {
-    return focus.kind !== 'trip' && focus.title.trim().toLowerCase() === 'money';
+    return focus.kind === 'money';
   }
 
   function renderLedger(focus) {

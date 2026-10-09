@@ -508,6 +508,39 @@ step('money page shows the ledger roll-up', function () {
   assert.ok(ledger.textContent.indexOf('Nothing waiting') === -1, 'should show an owed line');
 });
 
+step('documents get expiry dates and warn under six months', function () {
+  // From the attach step we are on the journey's sheet-closed trip page? Re-trip:
+  while (all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; }).length) {
+    all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Back'; })[0].fire('click');
+  }
+  var docOpen = all(elements.app, function (n) { return n.tagName === 'button' && n.textContent === 'Open' && n.getAttribute('aria-label') === 'Open Documents'; })[0];
+  assert.ok(docOpen, 'Documents Open not found');
+  docOpen.fire('click');
+  // Add a document entry with a near expiry via the add sheet.
+  button(elements.app, 'Add a note').fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  // pick kind: Document entry
+  var kindSel = all(sheet, function (n) { return n.tagName === 'select'; })[0];
+  assert.ok(kindSel, 'kind select missing');
+  kindSel.value = 'doc';
+  var texts = textInputs(sheet);
+  texts[0].value = 'Visa';
+  all(sheet, function (n) { return n.tagName === 'form'; })[0].fire('submit');
+    // Now open the new note's edit sheet and give it a near expiry.
+  var titleBtn = all(elements.app, function (n) { return n.className === 'card-title' && n.textContent === 'Visa'; })[0];
+  assert.ok(titleBtn, 'visa card not found');
+  titleBtn.fire('click');
+  var sheet2 = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  var dates = all(sheet2, function (n) { return n.tagName === 'input' && n.attrs.type === 'date'; });
+  assert.strictEqual(dates.length, 2, 'doc should offer issue + expiry dates');
+  assert.ok(sheet2.textContent.indexOf('Issue date') !== -1 && sheet2.textContent.indexOf('Expiry date') !== -1,
+    'doc date labels missing');
+  dates[1].value = '2026-11-01'; // within six months of the real clock (tested Oct 2026) -> warns
+  all(sheet2, function (n) { return n.tagName === 'form'; })[0].fire('submit');
+  var cards = all(elements.app, function (n) { return n.className === 'meta' && n.textContent.indexOf('Expires in') !== -1; });
+  assert.strictEqual(cards.length, 1, 'expiry warning not on card');
+});
+
 step('itinerary sheet offers Copy text alongside Word', function () {
   button(elements.app, 'Itinerary').fire('click');
   var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];

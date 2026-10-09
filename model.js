@@ -16,7 +16,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var STATE_VERSION = 1;
+  var STATE_VERSION = 2;
 
   /*
    * Kinds are data, not logic. To add a new kind (e.g. "ferry"), add one entry.
@@ -33,8 +33,8 @@
       label: 'Trip', colour: 'grey', prompt: '', fields: [],
       starters: [
         { kind: 'other', title: 'Planning' },
-        { kind: 'other', title: 'Documents' },
-        { kind: 'other', title: 'Money' },
+        { kind: 'documents', title: 'Documents' },
+        { kind: 'money', title: 'Money' },
         { kind: 'home', title: 'Home' }
       ]
     },
@@ -73,13 +73,18 @@
     seat:       { label: 'Seats & bags',    colour: 'grey',   prompt: 'To choose', fields: ['checked'], starters: [] },
     contact:    { label: 'Address & contact', colour: 'pink', prompt: 'To find', fields: [], starters: [] },
     bag:        { label: 'Bag',        colour: 'purple', prompt: '', fields: [], starters: [] },
+    documents:  { label: 'Documents',  colour: 'blue',   prompt: '', fields: [], starters: [] },
+    money:      { label: 'Money',      colour: 'amber',  prompt: '', fields: [], starters: [] },
+    doc:        { label: 'Document entry', colour: 'blue', prompt: 'To obtain', fields: ['dates'],
+      times: null, dateLabels: { from: 'Issue date', to: 'Expiry date' }, starters: [] },
     item:       { label: 'Item',       colour: 'purple', prompt: '', fields: ['checked'], starters: [] },
     other:      { label: 'Other',      colour: 'grey',   prompt: '', fields: [], starters: [] }
   };
 
   // Kinds the person can pick when adding a note by hand.
   var ADDABLE_KINDS = ['place', 'flight', 'train', 'transfer', 'layover', 'stay',
-    'activity', 'restaurant', 'payment', 'seat', 'contact', 'bag', 'packing', 'item', 'other'];
+    'activity', 'restaurant', 'payment', 'seat', 'contact', 'bag', 'packing', 'item', 'other',
+    'documents', 'money', 'doc'];
 
   // Ways of travelling offered by the "Where next?" flow.
   var JOURNEY_MODES = [
@@ -434,6 +439,14 @@
     return true;
   }
 
+  // Days until a document entry's expiry date expires (null when none set).
+  function expiryDays(note) {
+    if (!note.endDate) return null;
+    var e = parseDate(note.endDate);
+    if (!e) return null;
+    return Math.round((e - Date.now()) / 86400000);
+  }
+
   // Money ledger: every payment note in the subtree, grouped by paid/owed, with the
   // nearest non-payment ancestor as the booking it belongs to.
   function moneyLedger(state, rootId) {
@@ -601,6 +614,16 @@
         if (r) { r.key = raw.key; registerRecipe(r); }
       });
     }
+    // Migration: v1 gave Money/Documents the generic 'other' kind. Promote them so
+    // the ledger and expiry warnings key off kind, not the title.
+    if (!data.version || data.version < 2) {
+      data.notes.forEach(function (raw) {
+        if (!raw || raw.kind !== 'other') return;
+        var t = String(raw.title || '').trim().toLowerCase();
+        if (t === 'money') raw.kind = 'money';
+        else if (t === 'documents') raw.kind = 'documents';
+      });
+    }
     var seen = {};
     var notes = data.notes.map(function (raw) {
       if (!raw || typeof raw.id !== 'string' || !raw.id) throw new Error('A note is missing its id.');
@@ -675,6 +698,7 @@
     COLOURS: COLOURS,
     SUGGESTIONS: SUGGESTIONS,
     moneyLedger: moneyLedger,
+    expiryDays: expiryDays,
     suggestCategoryFor: suggestCategoryFor,
     suggestionCategory: suggestionCategory,
     existingTitles: existingTitles,
