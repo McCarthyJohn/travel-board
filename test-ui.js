@@ -441,6 +441,42 @@ step('export filter: untick packing kinds and the view drops them live', functio
   button(sheet, 'Close').fire('click');
 });
 
+step('trip basics: Edit shows Leaving/Back dates and From/To places, and saves them', function () {
+  // From the trip page (after the backup-restore step). Open the trip's own edit sheet.
+  button(elements.app, 'Edit').fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  var dates = all(sheet, function (n) { return n.tagName === 'input' && n.attrs.type === 'date'; });
+  assert.strictEqual(dates.length, 2, 'trip sheet missing date pair');
+  assert.ok(sheet.textContent.indexOf('Leaving') !== -1, 'Leaving label missing');
+  assert.ok(sheet.textContent.indexOf('Back') !== -1, 'Back label missing');
+  assert.ok(sheet.textContent.indexOf('From place') !== -1, 'From place missing on trip');
+  dates[0].value = '2027-04-10';
+  dates[1].value = '2027-04-24';
+  var texts = textInputs(sheet).filter(function (i) { return i.attrs.placeholder !== 'Booking or confirmation reference'; });
+  // order: Title, From place, To place — skip the title (keep 'Italy again').
+  texts[1].value = 'Melbourne';
+  texts[2].value = 'Rome';
+  all(sheet, function (n) { return n.tagName === 'form'; })[0].fire('submit');
+  var s = savedState();
+  var trip = s.notes.filter(function (n) { return n.id === s.rootId; })[0];
+  assert.strictEqual(trip.from, 'Melbourne');
+  assert.strictEqual(trip.to, 'Rome');
+  assert.strictEqual(trip.startDate, '2027-04-10');
+  assert.strictEqual(trip.endDate, '2027-04-24');
+  assert.strictEqual(TB.nights(trip), 14);
+  // Summary on the trip page now shows the route line:
+  var summary = all(elements.app, function (n) { return n.className === 'summary'; })[0];
+  assert.ok(summary && summary.textContent.indexOf('Melbourne \u2192 Rome') !== -1, 'route line missing from summary');
+});
+
+step('itinerary sheet offers Copy text alongside Word', function () {
+  button(elements.app, 'Itinerary').fire('click');
+  var sheet = all(bodyEl, function (n) { return n.className === 'sheet'; })[0];
+  assert.ok(all(sheet, function (n) { return n.tagName === 'button' && n.textContent === 'Copy text'; }).length === 1,
+    'Copy text button missing');
+  button(sheet, 'Close').fire('click');
+});
+
 step('attach a document to the flight: picker stores it, paperclip shows, restore keeps the name', function () {
   // On the trip page (from the backup-restore step). Open the train card's edit sheet.
   button(elements.app, 'Home \u2192 Singapore').fire('click');

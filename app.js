@@ -348,7 +348,7 @@
     openSheet('Edit ' + TB.kindOf(note.kind).label.toLowerCase(), function (body, close) {
       var isRoot = note.id === state.rootId;
       var kindDef = TB.kindOf(note.kind);
-      var has = function (f) { return kindDef.fields.indexOf(f) !== -1; };
+      var has = function (f) { return isRoot ? (f === 'dates' || f === 'route') : kindDef.fields.indexOf(f) !== -1; };
 
       var title = h('input', { type: 'text', value: note.title, autocomplete: 'off' });
       var details = h('textarea', { value: note.details });
@@ -365,6 +365,10 @@
       var checked = h('input', { type: 'checkbox', checked: note.checked });
       var hasTimes = kindDef.times ? true : false;
       var timeLabels = kindDef.times || { from: 'Starts at', to: null };
+      // Trip-level basics: the trip itself carries From/To and overall dates.
+      if (isRoot) { hasTimes = false; timeLabels = { from: 'Starts at', to: null }; }
+      var dateLabels = isRoot ? { from: 'Leaving', to: 'Back' }
+        : (kindDef.fields.indexOf('dates') !== -1 ? { from: 'From', to: 'To' } : null);
       var startTime = hasTimes ? h('input', { type: 'time', value: note.startTime }) : null;
       var endTime = (hasTimes && timeLabels.to) ? h('input', { type: 'time', value: note.endTime }) : null;
 
@@ -404,7 +408,7 @@
       if (kind) form.appendChild(field('Kind', kind));
       form.appendChild(field('Notes', details));
       if (has('dates')) {
-        form.appendChild(h('div', { class: 'row' }, field('From', start), field('To', end)));
+        form.appendChild(h('div', { class: 'row' }, field(dateLabels.from, start), field(dateLabels.to, end)));
         form.appendChild(nightsLine);
       }
       if (hasTimes) {
@@ -562,6 +566,48 @@
     itinDeepIncluded(view, note, depth);
   }
 
+  // Plain-text mirror of the itinerary view (same filter, same order).
+  function itinTextLines(note, depth, out) {
+    var pad = '';
+    for (var i = 0; i < depth; i++) pad += '  ';
+    var line = pad + note.title;
+    var m = TBDocx.metaText(note);
+    if (m) line += ' \u2014 ' + m;
+    out.push(line);
+    if (note.details) out.push(pad + '  ' + note.details.replace(/\n+/g, ' '));
+    if (note.link) out.push(pad + '  ' + note.link);
+    TB.children(state, note.id).forEach(function (c) {
+      itinTextLines(c, depth + 1, out);
+    });
+  }
+
+  function itineraryText(node) {
+    var out = [];
+    var keep = exportFilter;
+    if (keep[node.kind]) {
+      out.push(node.title);
+      var rootMeta = TBDocx.metaText(node);
+      if (rootMeta) out.push(rootMeta);
+      if (node.details) out.push(node.details);
+      if (node.link) out.push(node.link);
+      out.push('');
+    }
+    TB.children(state, node.id).forEach(function (child) {
+      if (!keep[child.kind]) return;
+      out.push(child.title.toUpperCase());
+      var m = TBDocx.metaText(child);
+      if (m) out.push(m);
+      if (child.details) out.push(child.details.replace(/\n+/g, ' '));
+      if (child.link) out.push(child.link);
+      TB.children(state, child.id).forEach(function (c) {
+        itinTextLines(c, 1, out);
+      });
+      out.push('');
+    });
+    while (out.length && out[out.length - 1] === '') out.pop();
+    return out.join('\n');
+  }
+
   function appendDeepRow(view, note, depth) {
     var row = h('div', { class: 'itin-row' });
     var pad = '';
@@ -635,6 +681,25 @@
         h('button', {
           class: 'btn', type: 'button', text: 'Print / Save PDF',
           onclick: function () { window.print(); }
+        }),
+        h('button', {
+          class: 'btn', type: 'button', text: 'Copy text',
+          onclick: function () {
+            var text = itineraryText(node);
+            function fallback() {
+              var blob = new Blob([text], { type: 'text/plain' });
+              var url = URL.createObjectURL(blob);
+              var a = h('a', { href: url, download: TBDocx.fileName(state, nodeId, exportFilter).replace('.docx', '.txt') });
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+              toast('Paste-ready text downloaded');
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(function () { toast('Itinerary copied — paste it anywhere'); }, fallback);
+            } else fallback();
+          }
         })));
     });
   }

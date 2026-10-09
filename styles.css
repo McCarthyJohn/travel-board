@@ -1,6 +1,7 @@
 /* Travel Board styles. Plain CSS, no build step. Targets iPad Safari 15+. */
 
 :root {
+  --display: "Instrument Serif", "Times New Roman", Georgia, serif;
   --page: #F1EFE8;
   --ink: #2C2C2A;
   --ink-soft: #5F5E5A;
@@ -62,8 +63,10 @@ button {
 .top h1 {
   flex: 1;
   margin: 0;
-  font-size: 26px;
-  font-weight: 700;
+  font-family: var(--display);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
   overflow-wrap: anywhere;
 }
 .crumbs {
@@ -241,7 +244,7 @@ button {
   .sheet { border-radius: 16px; }
 }
 .sheet-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.sheet-head h2 { flex: 1; margin: 0; font-size: 20px; }
+.sheet-head h2 { flex: 1; margin: 0; font-family: var(--display); font-size: 24px; font-weight: 400; }
 
 .field { display: block; margin-bottom: 12px; }
 .field > span { display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
@@ -303,8 +306,8 @@ button {
 
 /* ---- itinerary view ---- */
 .itin { border: 1px solid var(--line); border-radius: 10px; background: var(--white); padding: 12px 14px; margin-bottom: 8px; }
-.itin-h { font-size: 16px; font-weight: 700; margin: 10px 0 2px; }
-.itin-root { font-size: 20px; margin: 0 0 2px; }
+.itin-h { font-family: var(--display); font-size: 20px; font-weight: 400; margin: 12px 0 2px; }
+.itin-root { font-family: var(--display); font-size: 26px; margin: 0 0 2px; }
 .itin-row { display: flex; align-items: baseline; gap: 6px; font-size: 14px; margin: 3px 0; }
 .itin-bullet { flex: none; color: var(--ink-soft); }
 .itin-line { min-width: 0; overflow-wrap: anywhere; }
@@ -383,7 +386,7 @@ button {
 
 /* ---- first run ---- */
 .welcome { max-width: 480px; margin: 12vh auto 0; text-align: center; }
-.welcome h1 { font-size: 30px; margin: 0 0 8px; }
+.welcome h1 { font-family: var(--display); font-size: 40px; font-weight: 400; margin: 0 0 8px; }
 .welcome p { color: var(--ink-soft); margin: 0 0 20px; }
 .welcome .field { text-align: left; }
 
